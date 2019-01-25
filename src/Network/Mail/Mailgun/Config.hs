@@ -2,11 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Network.Mail.Mailgun.What
- ( MailgunContext(..), mailgunDomain, mailgunApiKey, mailgunApiBase
- , mailgunGetContext
+module Network.Mail.Mailgun.Config
+ ( MailgunConfig(..), mailgunDomain, mailgunApiKey, mailgunApiBase
+ , mailgunGetConfig
  , mailgunFromEnv, mailgunFromIni
- , MailgunContextException(..)
+ , MailgunConfigException(..)
+ , _MailgunApiKeyRequired, _MailgunDomainRequired
+ , _MailgunInvalidRegion, _MailgunIniNotFound
+ , _MailgunConextUnavailable
  ) where
 
 import           Control.Applicative
@@ -25,7 +28,7 @@ import qualified Data.Text.Encoding as TE
 import           System.Environment
 import           System.FilePath
 
-data MailgunContextException
+data MailgunConfigException
  = MailgunApiKeyRequired
  | MailgunDomainRequired
  | MailgunInvalidRegion
@@ -33,13 +36,13 @@ data MailgunContextException
  | MailgunConextUnavailable
  deriving (Show)
 
-instance Exception MailgunContextException
+instance Exception MailgunConfigException
 
-makePrisms ''MailgunContextException
+makePrisms ''MailgunConfigException
 
 -- | The configuration we use when accessing the Mailgun API.
-data MailgunContext
- = MailgunContext
+data MailgunConfig
+ = MailgunConfig
    { _mailgunDomain  :: String
      -- ^ The domain we're using mailgun with.
    , _mailgunApiKey  :: BS.ByteString
@@ -49,7 +52,7 @@ data MailgunContext
    }
  deriving (Show, Eq)
 
-makeLenses ''MailgunContext
+makeLenses ''MailgunConfig
 
 -- | The base API URL used for the US region.
 usApiBase :: String
@@ -59,17 +62,17 @@ usApiBase = "https://api.mailgun.net"
 euApiBase :: String
 euApiBase = "https://api.eu.mailgun.net"
 
--- | Uses the available options to discover a MaingunContext if possible.
-mailgunGetContext :: (MonadIO m, MonadCatch m) => m MailgunContext
-mailgunGetContext = do
+-- | Uses the available options to discover a MaingunConfig if possible.
+mailgunGetConfig :: (MonadIO m, MonadCatch m) => m MailgunConfig
+mailgunGetConfig = do
   ec <- runMaybeT . msum .
-       map (\act -> act `catch` (\(_::MailgunContextException) -> MaybeT $ pure Nothing)) $
+       map (\act -> act `catch` (\(_::MailgunConfigException) -> MaybeT $ pure Nothing)) $
        [ mailgunFromEnv
        , mailgunFromIni
        ]
   maybe (throwM MailgunConextUnavailable) pure ec
 
--- | Builds a MaingunContext from enviromental variables.
+-- | Builds a MaingunConfig from enviromental variables.
 --
 --   MAILGUN_API_KEY:  Required; the API key for mailgun.
 --   MAILGUN_DOMAIN:   Required; the domain in mailgun we're using.
@@ -77,7 +80,7 @@ mailgunGetContext = do
 --                               Valid values are 'US', and 'EU', defaults to 'US'.
 --   MAILGUN_API_BASE: Optional; Override the base URL (primarily for testing).
 --                               Takes presidence over MAILGUN_REGION.
-mailgunFromEnv :: (MonadIO m, MonadThrow m) => m MailgunContext
+mailgunFromEnv :: (MonadIO m, MonadThrow m) => m MailgunConfig
 mailgunFromEnv = do
   apiKey <- maybe (throwM MailgunApiKeyRequired) (pure . TE.encodeUtf8 . T.pack) =<<
            liftIO (lookupEnv "MAILGUN_API_KEY")
@@ -91,7 +94,7 @@ mailgunFromEnv = do
                   Just "US" -> pure usApiBase
                   Just "EU" -> pure euApiBase
                   _    -> throwM MailgunInvalidRegion
-  pure $ MailgunContext domain apiKey apiBase
+  pure $ MailgunConfig domain apiKey apiBase
 
 -- | Looks for an ini format file at ".mailgun" and "~/.mailgun" in that order.
 --   Credentials are read from the ini in the format:
@@ -104,7 +107,7 @@ mailgunFromEnv = do
 --   @
 --
 --   The API key and domain are required, other values are optional.
-mailgunFromIni :: forall m . (MonadIO m, MonadThrow m) => m MailgunContext
+mailgunFromIni :: forall m . (MonadIO m, MonadThrow m) => m MailgunConfig
 mailgunFromIni = do
   ini <- (maybe (throwM MailgunIniNotFound) pure . asum) =<<
         liftIO (sequence
@@ -120,11 +123,11 @@ mailgunFromIni = do
                            "US" -> usApiBase
                            "EU" -> euApiBase)
                      <$> (lookupMailgunMay ini "region"))
-  pure $ MailgunContext domain apiKey apiBase
+  pure $ MailgunConfig domain apiKey apiBase
   where
     readIniFileMay :: FilePath -> IO (Maybe Ini)
     readIniFileMay fp = (maybeRight <$> readIniFile fp) `catchIOError` (const (pure Nothing))
-    lookupMailgun :: MailgunContextException -> Ini -> Text -> m String
+    lookupMailgun :: MailgunConfigException -> Ini -> Text -> m String
     lookupMailgun e ini key = maybe (throwM e) pure $ lookupMailgunMay ini key
     lookupMailgunMay :: Ini -> Text -> Maybe String
     lookupMailgunMay ini key =
