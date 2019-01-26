@@ -1,33 +1,89 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 module Network.Mail.Mailgun.API where
 
 import           Control.Lens
+import           Control.Monad.Catch
 import           Control.Monad.Reader.Class
 import           Control.Monad.Trans
+import qualified Data.Aeson as JS
 import           Data.ByteString.Lazy (ByteString)
+import           Data.Foldable
 import           Data.List.Lens
+import           Data.Machine
 import qualified Data.Proxy as Reflection
 import           Network.Mail.Mailgun.Config
+import           Data.Text (Text)
 import qualified Data.Text.Encoding as TE
 import           Network.Wreq
 import           Network.Wreq.Lens
 import           Network.Wreq.Types (Postable, Putable)
 
+data UnparsableResponse
+ = UnparsableResponse
+ deriving (Show)
+
+makePrisms ''UnparsableResponse
+instance Exception UnparsableResponse
+
+data MailgunApiError
+ = RequestTooLarge
+ | MailgunSideError
+ | UnknownResponseError Int
+ deriving (Show)
+
+makePrisms ''MailgunApiError
+instance Exception MailgunApiError
+
+data MGRequest
+ = MGGet
+   { _reqPath   :: String
+   , _reqParams :: [(Text, Text)]
+   }
+-- | Post p
+
+makeLenses ''MGRequest
+
 wreqOptions :: MailgunConfig -> Options
 wreqOptions = reader $ \c ->
-  defaults & auth ?~ basicAuth (TE.encodeUtf8 "api") ((TE.encodeUtf8 "key-")<>(c^.mailgunApiKey))
+  defaults & auth ?~ basicAuth (TE.encodeUtf8 "api") (c^.mailgunApiKey)
 
-post :: forall c m d r
-     . (HasMailgunConfig c, MonadIO m, MonadReader c m, Postable d)
-     => String
-     -- ^ The path suffix for the API endpoint.
-     -> (Response ByteString -> m r)
-     -> d
-     -- ^ The thing we'll encode as a form to do the API call.
+call :: forall c m e d r
+     . (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
+     => MGRequest
+     -> (JS.Value -> Maybe r)
      -> m r
-post ps respHandle d = do
-  c <- ask
-  liftIO (postWith (c^.mailgunConfig.to wreqOptions) ((c^.mailgunApiBase)<>ps) d) >>=
-    respHandle
+call rq respHandle = do
+  c <- view mailgunConfig
+  let o   = (c^.to wreqOptions) & params .~ (rq^.reqParams)
+  let url = mconcat ["https://", c^.mailgunApiDomain, "/", rq^.reqPath]
+  resp <- liftIO $ case rq of
+           MGGet {} ->
+             getWith o url
+  case resp^.responseStatus.statusCode of
+    413 -> throwM RequestTooLarge
+    sts | sts `elem` [500, 502, 503, 504] -> throwM MailgunSideError
+    200 -> do
+      vr <- asValue resp
+      case respHandle (vr^.responseBody) of
+        Nothing -> throwM UnparsableResponse
+        Just r -> pure r
+    sts -> throwM $ UnknownResponseError sts
+
+getStream :: forall t c m e d r s
+          . (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
+          => s
+          -- ^ The initial start parameter (like 'begin'
+          -> (s -> (t, MGRequest))
+          -> (t -> JS.Value -> Maybe (Maybe s, [r]))
+          -> SourceT m r
+getStream seed rqMkr respHandle = construct (go seed)
+  where
+    go r = do
+      let (c, rq) = rqMkr r
+      (ms, res) <- lift $ call rq (respHandle c)
+      for_ res yield
+      for_ ms go

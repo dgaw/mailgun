@@ -28,6 +28,8 @@ common deps
     , filepath
     , ini
     , lens
+    , lens-aeson
+    , machines
     , mime-mail
     , mtl
     , text
@@ -44,4 +46,5 @@ library
     Network.Mail.Mailgun
     Network.Mail.Mailgun.API
     Network.Mail.Mailgun.Config
+    Network.Mail.Mailgun.Domains
     Network.Mail.Mailgun.Send

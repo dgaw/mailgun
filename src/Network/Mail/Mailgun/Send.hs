@@ -37,13 +37,21 @@ class MailgunSend msg where
 -- | 0 to 3 entries
 type MailgunTags = [CIAscii]
 
+data ClickTrack
+ = DoTrackClick
+ | DontTrackClick
+ | TrackClickHtmlOnly
+ deriving (Show, Eq, Ord)
+
+makePrisms ''ClickTrack
+
 data MailgunSendOptions
   = MSO
     { _tags              :: MailgunTags
     , _dkim              :: Bool
     , _deliverAt         :: UTCTime
     , _track             :: Bool
-    , _trackClicks       :: Bool
+    , _trackClicks       :: ClickTrack
     , _trackOpens        :: Bool
     , _skipVerification  :: Bool
     , _templateVariables :: HashMap Text JS.Value
