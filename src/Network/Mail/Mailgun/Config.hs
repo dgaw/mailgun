@@ -3,7 +3,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Network.Mail.Mailgun.Config
- ( MailgunConfig(..), mailgunDomain, mailgunApiKey, mailgunApiBase
+ ( MailgunConfig(..)
+ , HasMailgunConfig(..)
  , mailgunGetConfig
  , mailgunFromEnv, mailgunFromIni
  , MailgunConfigException(..)
@@ -21,6 +22,7 @@ import           Control.Monad.Trans.Maybe
 import qualified Data.ByteString as BS
 import           Data.Foldable
 import           Data.Ini
+import           Data.List.Lens
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -49,10 +51,11 @@ data MailgunConfig
      -- ^ Our mailgun API key.
    , _mailgunApiBase :: String
      -- ^ The base URL for the mailgun API, usually "https://api.mailgun.net"
+   , _mailgunTestMode :: Bool
    }
  deriving (Show, Eq)
 
-makeLenses ''MailgunConfig
+makeClassy ''MailgunConfig
 
 -- | The base API URL used for the US region.
 usApiBase :: String
@@ -72,6 +75,9 @@ mailgunGetConfig = do
        ]
   maybe (throwM MailgunConextUnavailable) pure ec
 
+withoutTrailingSlash :: String -> String
+withoutTrailingSlash s = fromMaybe s $ stripSuffix "/" s
+
 -- | Builds a MaingunConfig from enviromental variables.
 --
 --   MAILGUN_API_KEY:  Required; the API key for mailgun.
@@ -80,21 +86,24 @@ mailgunGetConfig = do
 --                               Valid values are 'US', and 'EU', defaults to 'US'.
 --   MAILGUN_API_BASE: Optional; Override the base URL (primarily for testing).
 --                               Takes presidence over MAILGUN_REGION.
+--   MAILGUN_LIVE:     Optional: Unless set to True, set to test mode.
+--                               In test mode Mailgun accepts but does not send messages. 
 mailgunFromEnv :: (MonadIO m, MonadThrow m) => m MailgunConfig
 mailgunFromEnv = do
-  apiKey <- maybe (throwM MailgunApiKeyRequired) (pure . TE.encodeUtf8 . T.pack) =<<
-           liftIO (lookupEnv "MAILGUN_API_KEY")
-  domain <- maybe (throwM MailgunDomainRequired) pure =<<
-           liftIO (lookupEnv "MAILGUN_DOMAIN")
-  apiBase <- liftIO (lookupEnv "MAILGUN_API_BASE") >>= \case
-              Just ab -> pure ab
-              Nothing ->
-                liftIO (lookupEnv "MAILGUN_REGION") >>= \case
-                  Nothing   -> pure usApiBase
-                  Just "US" -> pure usApiBase
-                  Just "EU" -> pure euApiBase
-                  _    -> throwM MailgunInvalidRegion
-  pure $ MailgunConfig domain apiKey apiBase
+  apiKey  <- maybe (throwM MailgunApiKeyRequired) (pure . TE.encodeUtf8 . T.pack) =<<
+            liftIO (lookupEnv "MAILGUN_API_KEY")
+  domain  <- maybe (throwM MailgunDomainRequired) pure =<<
+            liftIO (lookupEnv "MAILGUN_DOMAIN")
+  testmode <- ((Just "True")==) <$> liftIO (lookupEnv "MAILGUN_DOMAIN")
+  apiBase  <- liftIO (lookupEnv "MAILGUN_API_BASE") >>= \case
+               Just ab -> pure ab
+               Nothing ->
+                 liftIO (lookupEnv "MAILGUN_REGION") >>= \case
+                   Nothing   -> pure usApiBase
+                   Just "US" -> pure usApiBase
+                   Just "EU" -> pure euApiBase
+                   _    -> throwM MailgunInvalidRegion
+  pure $ MailgunConfig domain apiKey (withoutTrailingSlash apiBase) testmode
 
 -- | Looks for an ini format file at ".mailgun" and "~/.mailgun" in that order.
 --   Credentials are read from the ini in the format:
@@ -104,6 +113,7 @@ mailgunFromEnv = do
 --   domain: mydomain.com
 --   key: 3ax6xnjp29jd6fds4gc373sgvjxteol0
 --   api_base: https://api.mailgun.com
+--   live: True
 --   @
 --
 --   The API key and domain are required, other values are optional.
@@ -117,13 +127,14 @@ mailgunFromIni = do
                 ])
   apiKey <- TE.encodeUtf8 . T.pack <$> lookupMailgun MailgunApiKeyRequired ini "key"
   domain <- lookupMailgun MailgunApiKeyRequired ini "domain"
-  let apiBase = fromMaybe usApiBase $
-                (lookupMailgunMay ini "api_base")
-                <|> ((\case
-                           "US" -> usApiBase
-                           "EU" -> euApiBase)
-                     <$> (lookupMailgunMay ini "region"))
-  pure $ MailgunConfig domain apiKey apiBase
+  let testmode = (Just "True") == lookupMailgunMay ini "live"
+  let apiBase  = fromMaybe usApiBase $
+                 (lookupMailgunMay ini "api_base")
+                 <|> ((\case
+                            "US" -> usApiBase
+                            "EU" -> euApiBase)
+                      <$> (lookupMailgunMay ini "region"))
+  pure $ MailgunConfig domain apiKey (withoutTrailingSlash apiBase) testmode
   where
     readIniFileMay :: FilePath -> IO (Maybe Ini)
     readIniFileMay fp = (maybeRight <$> readIniFile fp) `catchIOError` (const (pure Nothing))

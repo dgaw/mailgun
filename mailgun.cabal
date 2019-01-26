@@ -20,16 +20,20 @@ common deps
   build-depends:
       aeson
     , aeson-filthy ^>= 0.1.3
+    , ascii
     , base ^>=4.12.0.0
     , bytestring
+    , containers
     , exceptions
     , filepath
     , ini
     , lens
+    , mime-mail
     , mtl
     , text
     , time
     , transformers
+    , unordered-containers
     , wreq
 
 library
@@ -38,4 +42,6 @@ library
   default-language:    Haskell2010
   exposed-modules:
     Network.Mail.Mailgun
+    Network.Mail.Mailgun.API
     Network.Mail.Mailgun.Config
+    Network.Mail.Mailgun.Send
