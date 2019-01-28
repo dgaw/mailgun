@@ -97,8 +97,8 @@ instance JS.ToJSON Domain where
 getDomains :: (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m) => SourceT m Domain
 getDomains =
   getStream 0
-    (\skip -> (skip, MGGet "/v3/domains" [("skip", T.pack $ show skip)
-                                        ,("limit", T.pack $ show pagingSize)]))
+    (\skip -> (skip, MGGet (const "/v3/domains") [("skip", T.pack $ show skip)
+                                                ,("limit", T.pack $ show pagingSize)]))
     (\skipped respVal ->
        let mrs = respVal^?key "items"._JSON
        in fmap (\rs -> (if length rs == pagingSize then Just (skipped+length rs) else Nothing

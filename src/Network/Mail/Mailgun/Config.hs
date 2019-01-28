@@ -3,7 +3,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Network.Mail.Mailgun.Config
- ( MailgunConfig(..)
+ ( DomainName
+ , MailgunConfig(..)
  , HasMailgunConfig(..)
  , mailgunGetConfig
  , mailgunFromEnv, mailgunFromIni
@@ -41,10 +42,12 @@ instance Exception MailgunConfigException
 
 makePrisms ''MailgunConfigException
 
+type DomainName = String
+
 -- | The configuration we use when accessing the Mailgun API.
 data MailgunConfig
  = MailgunConfig
-   { _mailgunDomain    :: String
+   { _mailgunDomain    :: DomainName
      -- ^ The domain we're using mailgun with.
    , _mailgunApiKey    :: BS.ByteString
      -- ^ Our mailgun API key.

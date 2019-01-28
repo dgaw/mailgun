@@ -26,12 +26,14 @@ common deps
     , containers
     , exceptions
     , filepath
+    , http-client
     , ini
     , lens
     , lens-aeson
     , machines
     , mime-mail
     , mtl
+    , safe
     , text
     , time
     , transformers

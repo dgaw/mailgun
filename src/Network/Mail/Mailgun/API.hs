@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
@@ -23,7 +24,7 @@ import           Network.Wreq.Lens
 import           Network.Wreq.Types (Postable, Putable)
 
 data UnparsableResponse
- = UnparsableResponse
+ = UnparsableResponse JS.Value
  deriving (Show)
 
 makePrisms ''UnparsableResponse
@@ -40,10 +41,14 @@ instance Exception MailgunApiError
 
 data MGRequest
  = MGGet
-   { _reqPath   :: String
+   { _reqPath   :: DomainName -> String
    , _reqParams :: [(Text, Text)]
    }
--- | Post p
+ | forall b. Postable b => MGPost
+   { _reqPath   :: DomainName -> String
+   , _reqParams :: [(Text, Text)]
+   , _reqBody   :: b
+   }
 
 makeLenses ''MGRequest
 
@@ -59,17 +64,19 @@ call :: forall c m e d r
 call rq respHandle = do
   c <- view mailgunConfig
   let o   = (c^.to wreqOptions) & params .~ (rq^.reqParams)
-  let url = mconcat ["https://", c^.mailgunApiDomain, "/", rq^.reqPath]
+  let url = mconcat ["https://", c^.mailgunApiDomain, (rq^.reqPath) (c^.mailgunDomain)]
   resp <- liftIO $ case rq of
            MGGet {} ->
              getWith o url
+           MGPost {_reqBody=bdy} ->
+             postWith o url bdy
   case resp^.responseStatus.statusCode of
     413 -> throwM RequestTooLarge
     sts | sts `elem` [500, 502, 503, 504] -> throwM MailgunSideError
     200 -> do
       vr <- asValue resp
       case respHandle (vr^.responseBody) of
-        Nothing -> throwM UnparsableResponse
+        Nothing -> throwM $ UnparsableResponse (vr^.responseBody)
         Just r -> pure r
     sts -> throwM $ UnknownResponseError sts
 
