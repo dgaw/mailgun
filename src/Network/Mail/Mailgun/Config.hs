@@ -16,7 +16,6 @@ module Network.Mail.Mailgun.Config
 
 import           Control.Applicative
 import           Control.Lens
-import           Control.Lens.TH
 import           Control.Monad.Catch
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Maybe
@@ -131,7 +130,8 @@ mailgunFromIni = do
                    (lookupMailgunMay ini "api_domain")
                    <|> ((\case
                               "US" -> usApiDomain
-                              "EU" -> euApiDomain)
+                              "EU" -> euApiDomain
+                              _    -> usApiDomain)
                        <$> (lookupMailgunMay ini "region"))
   pure $ MailgunConfig domain apiKey apiDomain testmode
   where

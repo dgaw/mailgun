@@ -11,17 +11,13 @@ import           Control.Monad.Catch
 import           Control.Monad.Reader.Class
 import           Control.Monad.Trans
 import qualified Data.Aeson as JS
-import           Data.ByteString.Lazy (ByteString)
 import           Data.Foldable
-import           Data.List.Lens
 import           Data.Machine
-import qualified Data.Proxy as Reflection
 import           Network.Mail.Mailgun.Config
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as TE
 import           Network.Wreq
-import           Network.Wreq.Lens
-import           Network.Wreq.Types (Postable, Putable)
+import           Network.Wreq.Types (Postable)
 
 data UnparsableResponse
  = UnparsableResponse JS.Value
@@ -56,7 +52,7 @@ wreqOptions :: MailgunConfig -> Options
 wreqOptions = reader $ \c ->
   defaults & auth ?~ basicAuth (TE.encodeUtf8 "api") (c^.mailgunApiKey)
 
-call :: forall c m e d r
+call :: forall c m r
      . (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
      => MGRequest
      -> (JS.Value -> Maybe r)
@@ -80,7 +76,7 @@ call rq respHandle = do
         Just r -> pure r
     sts -> throwM $ UnknownResponseError sts
 
-getStream :: forall t c m e d r s
+getStream :: forall t c m r s
           . (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
           => s
           -- ^ The initial start parameter (like 'begin'

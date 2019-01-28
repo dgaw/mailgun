@@ -1,2 +1,4 @@
 packages: .
-          ../aeson-filthy
+
+package mailgun
+ ghc-options: -Wall

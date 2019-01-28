@@ -4,7 +4,6 @@
 module Network.Mail.Mailgun.Domains where
 
 import           Control.Lens
-import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.Reader.Class
 import           Control.Monad.Trans

@@ -11,29 +11,22 @@ module Network.Mail.Mailgun.Send
  ) where
 
 import           Control.Lens
-import           Control.Lens.TH
 import           Control.Monad.Catch
 import           Control.Monad.Reader
 import qualified Data.Aeson as JS
 import           Data.Aeson.Lens
 import           Data.Ascii (CIAscii)
 import qualified Data.Ascii as ASCII
-import qualified Data.ByteString.Lazy as LBS
-import           Data.HashMap.Strict (HashMap)
-import           Data.Machine
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Time
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.MultipartFormData as HTTP
 import           Network.Mail.Mailgun.API
 import           Network.Mail.Mailgun.Config
 import           Network.Mail.Mime (Address, Mail, renderMail', renderAddress)
 import           Network.Wreq
 import qualified Network.Wreq as HTTP
-import           Safe
 import           Text.Printf
 
 type MessageID = Text
@@ -92,7 +85,8 @@ send mo dests m = do
   call (  MGPost (printf "/v3/%s/messages.mime") [] . mconcat $
     [ [yesNo "o:testmode" test]
     , maybe [] mgsoAsMultipart mo
-    , [HTTP.partFileRequestBody "message" "message.mime" (HTTP.RequestBodyLBS rndrd)]
+    , [partLBS "message" rndrd & partFileName .~ Just "message.mime"
+                               ]
     , map (partText "to" . renderAddress) dests
     ]) (^?key "id"._JSON)
 
