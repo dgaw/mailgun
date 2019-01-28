@@ -30,8 +30,7 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.MultipartFormData as HTTP
 import           Network.Mail.Mailgun.API
 import           Network.Mail.Mailgun.Config
-import           Network.Mail.Mime (Address, Mail, mailTo, mailCc, mailBcc
-                                   ,renderMail', renderAddress)
+import           Network.Mail.Mime (Address, Mail, renderMail', renderAddress)
 import           Network.Wreq
 import qualified Network.Wreq as HTTP
 import           Safe
@@ -86,15 +85,15 @@ mgsoAsMultipart o = mconcat
 
 -- | Sends a given email.
 send :: (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
-     => Maybe MailgunSendOptions -> Mail -> m MessageID
-send mo m = do
+     => Maybe MailgunSendOptions -> [Address] -> Mail -> m MessageID
+send mo dests m = do
   test  <- view mailgunTestMode
   rndrd <- liftIO $! renderMail' m
   call (  MGPost (printf "/v3/%s/messages.mime") [] . mconcat $
     [ [yesNo "o:testmode" test]
     , maybe [] mgsoAsMultipart mo
     , [HTTP.partFileRequestBody "message" "message.mime" (HTTP.RequestBodyLBS rndrd)]
-    , map (partText "to" . renderAddress) (mailTo m++mailCc m++mailBcc m)
+    , map (partText "to" . renderAddress) dests
     ]) (^?key "id"._JSON)
 
 {- This has to be the form API, which leaves less control over attachments?
