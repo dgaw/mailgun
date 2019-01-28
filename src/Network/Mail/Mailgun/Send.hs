@@ -18,6 +18,7 @@ import qualified Data.Aeson as JS
 import           Data.Aeson.Lens
 import           Data.Ascii (CIAscii)
 import qualified Data.Ascii as ASCII
+import qualified Data.ByteString.Lazy as LBS
 import           Data.HashMap.Strict (HashMap)
 import           Data.Machine
 import           Data.Map (Map)
@@ -29,7 +30,8 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.MultipartFormData as HTTP
 import           Network.Mail.Mailgun.API
 import           Network.Mail.Mailgun.Config
-import           Network.Mail.Mime (Mail, mailTo, renderMail', renderAddress)
+import           Network.Mail.Mime (Address, Mail, mailTo, mailCc, mailBcc
+                                   ,renderMail', renderAddress)
 import           Network.Wreq
 import qualified Network.Wreq as HTTP
 import           Safe
@@ -82,22 +84,36 @@ mgsoAsMultipart o = mconcat
  , map (\(k, v) -> partLBS ("v:" `T.append` k) (JS.encode v)) (o^.templateVariables.to Map.toList)
  ]
 
+-- | Sends a given email.
 send :: (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
      => Maybe MailgunSendOptions -> Mail -> m MessageID
 send mo m = do
-  test <- view mailgunTestMode
---  liftIO $ putStrLn "test"
+  test  <- view mailgunTestMode
   rndrd <- liftIO $! renderMail' m
---  liftIO $ print rndrd
---  liftIO $ putStrLn "post"
-  call (MGPost (printf "/v3/%s/messages.mime") [] . mconcat $
-        [ [yesNo "o:testmode" test]
-        , maybe [] mgsoAsMultipart mo
-        , [HTTP.partFileRequestBody "message" "message.mime" (HTTP.RequestBodyLBS rndrd)]
-        , map (partText "to" . renderAddress) (mailTo m)
-        ])
-       (^?key "id"._JSON)
+  call (  MGPost (printf "/v3/%s/messages.mime") [] . mconcat $
+    [ [yesNo "o:testmode" test]
+    , maybe [] mgsoAsMultipart mo
+    , [HTTP.partFileRequestBody "message" "message.mime" (HTTP.RequestBodyLBS rndrd)]
+    , map (partText "to" . renderAddress) (mailTo m++mailCc m++mailBcc m)
+    ]) (^?key "id"._JSON)
 
+{- This has to be the form API, which leaves less control over attachments?
+-- | Takes an email, ignoring the to addresses, and sends it to all the
+--   addresses streamed in, paramterized by the JS.Values which can be used
+--   in the templating.
+sending :: (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m
+          ,JS.ToJSON t)
+        => Maybe MailgunSendOptions -> Mail
+        -> ProcessT m (Address, t) MessageID
+sending mo m = buffered 1000 ~> sendBatch ~> flattened
+  where
+    sendBatch = preplan $ do
+      test  <- view mailgunTestMode
+      rndrd <- liftIO $! renderMail' m
+      call (sendReq test mo rndrd $
+              (map (partText "to" . renderAddress) (mailTo m)))
+           (^?key "id"._JSON)
+-}
 
 --renderAddress :: Address -> Text
 --renderAddress (Address (Nothing) addr) = addr
