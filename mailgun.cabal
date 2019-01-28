@@ -31,8 +31,10 @@ common deps
     , lens-aeson
     , machines
     , mime-mail
+    , mime-types
     , mtl
     , text
+    , these
     , time
     , transformers
     , unordered-containers
