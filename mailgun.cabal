@@ -49,4 +49,5 @@ library
     Network.Mail.Mailgun.API
     Network.Mail.Mailgun.Config
     Network.Mail.Mailgun.Domains
+    Network.Mail.Mailgun.List
     Network.Mail.Mailgun.Send

@@ -66,10 +66,6 @@ data MailgunSendOptions
 
 makeClassy ''MailgunSendOptions
 
-yesNo :: Text -> Bool -> HTTP.Part
-yesNo t True  = partText t "yes"
-yesNo t False = partText t "no"
-
 mgsoAsMultipart :: Bool -> Maybe MailgunSendOptions -> [HTTP.Part]
 mgsoAsMultipart test mo = mconcat $
  [ [yesNo "o:testmode" test]
