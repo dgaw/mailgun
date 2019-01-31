@@ -142,8 +142,8 @@ removeList ml =
 listMembers :: (JS.ToJSON v, JS.FromJSON v
               ,HasMailgunConfig c, MonadReader c m, MonadIO m, MonadThrow m)
             => Maybe Bool -> Text -> SourceT m (ListMember v)
-listMembers msubbed addr =
-  paginatedStream (MGGet (const $ printf "/v3/lists/%s/members/pages" addr) . mconcat $
+listMembers msubbed ml =
+  paginatedStream (MGGet (const $ printf "/v3/lists/%s/members/pages" ml) . mconcat $
                          [ maybe [] (\s -> [("subscribed", if s then "yes" else "no")]) msubbed
                          , [ ("limit", "1000") ]
                          ])
