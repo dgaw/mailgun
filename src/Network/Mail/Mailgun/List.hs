@@ -164,7 +164,7 @@ removeMember ml mbr =
 
 addMembers :: (JS.ToJSON v, JS.FromJSON v
               ,HasMailgunConfig c, MonadReader c m, MonadIO m, MonadThrow m)
-           => Bool -> Text -> ProcessT m (ListMember v) ()
+           => Bool -> Text -> ProcessT m (ListMember v) (MailingList Identity)
 addMembers upsert ml =
   buffered 1000 ~> addMemberBatch
   where
