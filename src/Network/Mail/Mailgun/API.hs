@@ -96,7 +96,7 @@ call rq respHandle = do
 getStream :: forall t c m r s
           . (HasMailgunConfig c, MonadIO m, MonadThrow m, MonadReader c m)
           => s
-          -- ^ The initial start parameter (like 'begin'
+          -- ^ The initial start parameter (like @begin@)
           -> (s -> (t, MGRequest))
           -> (t -> JS.Value -> Maybe (Maybe s, [r]))
           -> SourceT m r

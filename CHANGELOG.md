@@ -1,5 +1,5 @@
 # Revision history for mailgun
 
-## 0.2 -- YYYY-mm-dd
+## 0.2 -- 2019-05-06
 
-* First version. Released on an unsuspecting world.
+* Complete rewrite supporting v3 API.
