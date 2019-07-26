@@ -34,7 +34,7 @@ common deps
     , lens                 ^>= 4.17
     , lens-aeson           ^>= 1.0
     , machines             ^>= 0.6
-    , mime-mail            ^>= 0.5
+    , mime-mail             >  0.4 && < 0.6
     , mime-types           ^>= 0.1
     , mtl                  ^>= 2.2
     , text                 ^>= 1.2
