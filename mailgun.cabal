@@ -44,7 +44,7 @@ library
     , lens                 ^>= 4.16
     , lens-aeson           ^>= 1.0
     , machines             ^>= 0.6.4
-    , mime-mail             >  0.4 && < 0.6
+    , mime-mail             >= 0.5 && < 0.6
     , mime-types           ^>= 0.1
     , mtl                  ^>= 2.2
     , text                 ^>= 1.2
